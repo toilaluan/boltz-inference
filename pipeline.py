@@ -669,6 +669,7 @@ if __name__ == "__main__":
             print(f"[compile:{mode}] running without torch.compile")
 
         warmup_elapsed = 0.0
+        model_to_run.eval()
         if args.warmup_iters > 0:
             warmup_start = time.time()
             for _ in range(args.warmup_iters):
