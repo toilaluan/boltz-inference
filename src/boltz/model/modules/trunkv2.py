@@ -742,8 +742,7 @@ class MSALayer(nn.Module):
 
         """
         # Communication to MSA stack
-        msa_dropout = get_dropout_mask(self.msa_dropout, m, self.training)
-        m = m + msa_dropout * self.pair_weighted_averaging(
+        m = m + self.pair_weighted_averaging(
             m, z, token_mask, chunk_heads_pwa
         )
         m = m + self.msa_transition(m, chunk_size_transition_msa)

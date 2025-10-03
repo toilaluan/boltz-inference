@@ -450,7 +450,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--input-yaml",
-        default="boltz_test_data_luan/P23975_ligand_0029.yaml",
+        default="samples/P23975_ligand_0029.yaml",
         help="Path to the input YAML file.",
     )
     parser.add_argument(
@@ -479,7 +479,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--recycling-steps",
         type=int,
-        default=3,
+        default=0,
         help="Recycling steps to use during inference.",
     )
     parser.add_argument(
@@ -637,13 +637,14 @@ if __name__ == "__main__":
         activities.append(ProfilerActivity.CUDA)
 
     compile_modes = args.compile_modes or ["default"]
-    should_print_model = True
+    should_print_model = False
 
     def run_single_step(active_model: Boltz2ChunkInfer) -> None:
         with torch.inference_mode():
-            active_model(batch, recycling_steps=args.recycling_steps)
+            out = active_model(batch, recycling_steps=args.recycling_steps)
         if device.type == "cuda":
             torch.cuda.synchronize()
+        return out
 
     for mode in compile_modes:
         model = build_model()
@@ -671,7 +672,7 @@ if __name__ == "__main__":
         if args.warmup_iters > 0:
             warmup_start = time.time()
             for _ in range(args.warmup_iters):
-                run_single_step(model_to_run)
+                _ = run_single_step(model_to_run)
             warmup_elapsed = time.time() - warmup_start
         print(f"[warmup:{mode}] {args.warmup_iters} iteration(s) in {warmup_elapsed:.2f}s")
 
@@ -686,7 +687,7 @@ if __name__ == "__main__":
             profile_memory=True,
         ) as prof:
             for _ in range(args.profile_iters):
-                run_single_step(model_to_run)
+                out = run_single_step(model_to_run)
                 prof.step()
         profile_elapsed = time.time() - profile_start
         print(
@@ -709,3 +710,5 @@ if __name__ == "__main__":
         del model
         if device.type == "cuda":
             torch.cuda.empty_cache()
+        print(out["pdistogram"][0,0,0,0,0])
+        print(out["pdistogram"].shape)

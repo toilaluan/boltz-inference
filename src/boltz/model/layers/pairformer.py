@@ -72,26 +72,22 @@ class PairformerLayer(nn.Module):
         use_cuequiv_attn: bool = False,
     ) -> tuple[Tensor, Tensor]:
         # Compute pairwise stack
-        dropout = get_dropout_mask(self.dropout, z, self.training)
-        z = z + dropout * self.tri_mul_out(
+        z = z + self.tri_mul_out(
             z, mask=pair_mask, use_kernels=use_cuequiv_mul or use_kernels
         )
 
-        dropout = get_dropout_mask(self.dropout, z, self.training)
-        z = z + dropout * self.tri_mul_in(
+        z = z + self.tri_mul_in(
             z, mask=pair_mask, use_kernels=use_cuequiv_mul or use_kernels
         )
 
-        dropout = get_dropout_mask(self.dropout, z, self.training)
-        z = z + dropout * self.tri_att_start(
+        z = z + self.tri_att_start(
             z,
             mask=pair_mask,
             chunk_size=chunk_size_tri_attn,
             use_kernels=use_cuequiv_attn or use_kernels,
         )
 
-        dropout = get_dropout_mask(self.dropout, z, self.training, columnwise=True)
-        z = z + dropout * self.tri_att_end(
+        z = z + self.tri_att_end(
             z,
             mask=pair_mask,
             chunk_size=chunk_size_tri_attn,
@@ -176,27 +172,10 @@ class PairformerModule(nn.Module):
             Whether to use kernels.
 
         """
-        if not self.training:
-            if z.shape[1] > const.chunk_size_threshold:
-                chunk_size_tri_attn = 128
-            else:
-                chunk_size_tri_attn = 512
-        else:
-            chunk_size_tri_attn = None
+        chunk_size_tri_attn = None
 
         for layer in self.layers:
-            if self.activation_checkpointing and self.training:
-                s, z = torch.utils.checkpoint.checkpoint(
-                    layer,
-                    s,
-                    z,
-                    mask,
-                    pair_mask,
-                    chunk_size_tri_attn,
-                    use_kernels,
-                )
-            else:
-                s, z = layer(s, z, mask, pair_mask, chunk_size_tri_attn, use_kernels)
+            s, z = layer(s, z, mask, pair_mask, chunk_size_tri_attn, use_kernels)
         return s, z
 
 
@@ -238,26 +217,22 @@ class PairformerNoSeqLayer(nn.Module):
         use_cuequiv_attn: bool = False,
     ) -> Tensor:
         # Compute pairwise stack
-        dropout = get_dropout_mask(self.dropout, z, self.training)
-        z = z + dropout * self.tri_mul_out(
+        z = z + self.tri_mul_out(
             z, mask=pair_mask, use_kernels=use_cuequiv_mul or use_kernels
         )
 
-        dropout = get_dropout_mask(self.dropout, z, self.training)
-        z = z + dropout * self.tri_mul_in(
+        z = z + self.tri_mul_in(
             z, mask=pair_mask, use_kernels=use_cuequiv_mul or use_kernels
         )
 
-        dropout = get_dropout_mask(self.dropout, z, self.training)
-        z = z + dropout * self.tri_att_start(
+        z = z + self.tri_att_start(
             z,
             mask=pair_mask,
             chunk_size=chunk_size_tri_attn,
             use_kernels=use_cuequiv_attn or use_kernels,
         )
 
-        dropout = get_dropout_mask(self.dropout, z, self.training, columnwise=True)
-        z = z + dropout * self.tri_att_end(
+        z = z + self.tri_att_end(
             z,
             mask=pair_mask,
             chunk_size=chunk_size_tri_attn,
@@ -307,28 +282,12 @@ class PairformerNoSeqModule(nn.Module):
         pair_mask: Tensor,
         use_kernels: bool = False,
     ) -> Tensor:
-        if not self.training:
-            if z.shape[1] > const.chunk_size_threshold:
-                chunk_size_tri_attn = 128
-            else:
-                chunk_size_tri_attn = 512
-        else:
-            chunk_size_tri_attn = None
-
+        chunk_size_tri_attn = None
         for layer in self.layers:
-            if self.activation_checkpointing and self.training:
-                z = torch.utils.checkpoint.checkpoint(
-                    layer,
-                    z,
-                    pair_mask,
-                    chunk_size_tri_attn,
-                    use_kernels,
-                )
-            else:
-                z = layer(
-                    z,
-                    pair_mask,
-                    chunk_size_tri_attn,
-                    use_kernels,
-                )
+            z = layer(
+                z,
+                pair_mask,
+                chunk_size_tri_attn,
+                use_kernels,
+            )
         return z

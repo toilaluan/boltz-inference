@@ -127,41 +127,40 @@ class Boltz2ChunkInfer(nn.Module):
 
     # --- Core: chunk inference only ---
     def forward_chunk(self, feats: Dict[str, Tensor], *, recycling_steps: int = 0) -> Dict[str, Tensor]:
-        with torch.inference_mode():
-            s_inputs = self.input_embedder(feats)
+        s_inputs = self.input_embedder(feats)
 
-            s_init = self.s_init(s_inputs)
-            z_init = self.z_init_1(s_inputs)[:, :, None] + self.z_init_2(s_inputs)[:, None, :]
+        s_init = self.s_init(s_inputs)
+        z_init = self.z_init_1(s_inputs)[:, :, None] + self.z_init_2(s_inputs)[:, None, :]
 
-            rpe = self.rel_pos(feats)
-            z = z_init + rpe
-            z = z + self.token_bonds(feats["token_bonds"].float())
-            if self.bond_type_feature:
-                z = z + self.token_bonds_type(feats["type_bonds"].long())
-            z = z + self.contact_conditioning(feats)
+        rpe = self.rel_pos(feats)
+        z = z_init + rpe
+        z = z + self.token_bonds(feats["token_bonds"].float())
+        if self.bond_type_feature:
+            z = z + self.token_bonds_type(feats["type_bonds"].long())
+        z = z + self.contact_conditioning(feats)
 
-            s = torch.zeros_like(s_init)
+        s = torch.zeros_like(s_init)
 
-            mask = feats["token_pad_mask"].float()
-            pair_mask = mask[:, :, None] * mask[:, None, :]
+        mask = feats["token_pad_mask"].float()
+        pair_mask = mask[:, :, None] * mask[:, None, :]
 
-            for _ in range(recycling_steps + 1):
-                s = s_init + self.s_recycle(self.s_norm(s))
-                z = z + self.z_recycle(self.z_norm(z))  # explicit add to keep flow obvious
+        for _ in range(recycling_steps + 1):
+            s = s_init + self.s_recycle(self.s_norm(s))
+            z = z + self.z_recycle(self.z_norm(z))  # explicit add to keep flow obvious
 
-                z = z + self.msa_module(z, s_inputs, feats, use_kernels=self.use_kernels)
+            z = z + self.msa_module(z, s_inputs, feats, use_kernels=self.use_kernels)
 
-                s, z = self.pairformer_module(
-                    s, z, mask=mask, pair_mask=pair_mask, use_kernels=self.use_kernels
-                )
+            s, z = self.pairformer_module(
+                s, z, mask=mask, pair_mask=pair_mask, use_kernels=self.use_kernels
+            )
 
-            pdistogram = self.distogram_module(z)
+        pdistogram = self.distogram_module(z)
 
-            return {
-                "s": s,
-                "z": z,
-                "pdistogram": pdistogram,
-            }
+        return {
+            "s": s,
+            "z": z,
+            "pdistogram": pdistogram,
+        }
 
     # Alias to keep callers simple
     def forward(self, feats: Dict[str, Tensor], *, recycling_steps: int = 0) -> Dict[str, Tensor]:
