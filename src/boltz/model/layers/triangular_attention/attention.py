@@ -24,11 +24,6 @@ from boltz.model.layers.triangular_attention.primitives import (
     LayerNorm,
     Linear,
 )
-from boltz.model.layers.triangular_attention.utils import (
-    chunk_layer,
-    permute_final_dims,
-)
-
 
 class TriangleAttention(nn.Module):
     """Implement Algorithm 12."""
@@ -61,8 +56,6 @@ class TriangleAttention(nn.Module):
         self,
         x: torch.Tensor,
         mask: Optional[torch.Tensor] = None,
-        chunk_size: Optional[int] = None,
-        use_kernels: bool = False,
     ) -> torch.Tensor:
         """Compute triangle attention.
 
@@ -72,10 +65,6 @@ class TriangleAttention(nn.Module):
             Input tensor of shape [*, I, J, C_in]
         mask : torch.Tensor, optional
             Attention mask of shape [*, I, J]
-        chunk_size : int, optional
-            Size of chunks for memory efficient computation
-        use_kernels : bool, default=False
-            Whether to use optimized CUDA kernels
 
         Returns
         -------
@@ -98,7 +87,6 @@ class TriangleAttention(nn.Module):
 
         # [*, I, 1, 1, J]
         mask = mask[..., :, None, None, :]
-        mask_bias = self.inf * (mask - 1)
 
         # [*, H, I, J]
         # triangle_bias = permute_final_dims(self.linear(x), (2, 0, 1))
@@ -109,22 +97,10 @@ class TriangleAttention(nn.Module):
             x,
             x,
             triangle_bias,
-            mask_bias,
             mask,
-            use_kernels=use_kernels,
         )
 
         if not self.starting:
             x = x.transpose(-2, -3)
 
         return x
-
-
-# Implements Algorithm 13
-TriangleAttentionStartingNode = TriangleAttention
-
-
-class TriangleAttentionEndingNode(TriangleAttention):
-    """Implement Algorithm 14."""
-
-    __init__ = partialmethod(TriangleAttention.__init__, starting=False)

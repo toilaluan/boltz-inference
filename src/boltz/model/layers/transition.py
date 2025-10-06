@@ -44,7 +44,7 @@ class Transition(nn.Module):
         init.lecun_normal_init_(self.fc2.weight)
         init.final_init_(self.fc3.weight)
 
-    def forward(self, x: Tensor, chunk_size: int = None) -> Tensor:
+    def forward(self, x: Tensor) -> Tensor:
         """Perform a forward pass.
 
         Parameters
@@ -59,20 +59,6 @@ class Transition(nn.Module):
 
         """
         x = self.norm(x)
-
-        if chunk_size is None or self.training:
-            x = self.silu(self.fc1(x)) * self.fc2(x)
-            x = self.fc3(x)
-            return x
-        else:
-            # Compute in chunks
-            for i in range(0, self.hidden, chunk_size):
-                fc1_slice = self.fc1.weight[i : i + chunk_size, :]
-                fc2_slice = self.fc2.weight[i : i + chunk_size, :]
-                fc3_slice = self.fc3.weight[:, i : i + chunk_size]
-                x_chunk = self.silu((x @ fc1_slice.T)) * (x @ fc2_slice.T)
-                if i == 0:
-                    x_out = x_chunk @ fc3_slice.T
-                else:
-                    x_out = x_out + x_chunk @ fc3_slice.T
-            return x_out
+        x = self.silu(self.fc1(x)) * self.fc2(x)
+        x = self.fc3(x)
+        return x

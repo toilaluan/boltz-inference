@@ -23,7 +23,7 @@ from boltz.model.modules.trunkv2 import (
 )
 
 
-class Boltz2ChunkInfer(nn.Module):
+class Boltz2TrunkInfer(nn.Module):
 
     def __init__(
         self,
@@ -50,7 +50,6 @@ class Boltz2ChunkInfer(nn.Module):
         bond_type_feature: bool = False,
         use_templates: bool = False,
         compile_pairformer: bool = False,
-        use_kernels: bool = False,
         min_dist: float = 2.0,
         max_dist: float = 22.0,
     ) -> None:
@@ -64,7 +63,6 @@ class Boltz2ChunkInfer(nn.Module):
         self.min_dist = min_dist
         self.max_dist = max_dist
         self.use_templates = use_templates
-        self.use_kernels = use_kernels
         self.bond_type_feature = bond_type_feature
         self.compile_pairformer = compile_pairformer
 
@@ -126,7 +124,7 @@ class Boltz2ChunkInfer(nn.Module):
                 )
 
     # --- Core: chunk inference only ---
-    def forward_chunk(self, feats: Dict[str, Tensor], *, recycling_steps: int = 0) -> Dict[str, Tensor]:
+    def forward_trunk(self, feats: Dict[str, Tensor], *, recycling_steps: int = 0) -> Dict[str, Tensor]:
         s_inputs = self.input_embedder(feats)
 
         s_init = self.s_init(s_inputs)
@@ -148,10 +146,10 @@ class Boltz2ChunkInfer(nn.Module):
             s = s_init + self.s_recycle(self.s_norm(s))
             z = z + self.z_recycle(self.z_norm(z))  # explicit add to keep flow obvious
 
-            z = z + self.msa_module(z, s_inputs, feats, use_kernels=self.use_kernels)
+            z = z + self.msa_module(z, s_inputs, feats)
 
             s, z = self.pairformer_module(
-                s, z, mask=mask, pair_mask=pair_mask, use_kernels=self.use_kernels
+                s, z, mask=mask, pair_mask=pair_mask
             )
 
         pdistogram = self.distogram_module(z)
@@ -164,7 +162,7 @@ class Boltz2ChunkInfer(nn.Module):
 
     # Alias to keep callers simple
     def forward(self, feats: Dict[str, Tensor], *, recycling_steps: int = 0) -> Dict[str, Tensor]:
-        return self.forward_chunk(feats, recycling_steps=recycling_steps)
+        return self.forward_trunk(feats, recycling_steps=recycling_steps)
 
     # ---- Light-weight checkpoint loader (no Lightning required) ----
     @classmethod
@@ -174,7 +172,7 @@ class Boltz2ChunkInfer(nn.Module):
         strict: bool = True,
         map_location: Optional[Union[str, torch.device]] = None,
         **overrides: Any,
-    ) -> "Boltz2ChunkInfer":
+    ) -> "Boltz2TrunkInfer":
         path = os.path.expanduser(ckpt_path)
         ckpt = torch.load(path, map_location=map_location or "cpu", weights_only=False)
 
@@ -253,7 +251,7 @@ class Boltz2ChunkInfer(nn.Module):
 
 # --- Optional: quick profiler for trunk only ---
 def profile_chunk_inference(
-    model: Boltz2ChunkInfer,
+    model: Boltz2TrunkInfer,
     feats: Dict[str, Tensor],
     *,
     compile_pairformer_layers: bool = False,
@@ -281,7 +279,7 @@ def profile_chunk_inference(
             activities.append(ProfilerActivity.CUDA)
 
     with torch.inference_mode():
-        _ = model.forward_chunk(feats, recycling_steps=recycling_steps)
+        _ = model.forward_trunk(feats, recycling_steps=recycling_steps)
     if torch.cuda.is_available():
         torch.cuda.synchronize()
 
@@ -295,7 +293,7 @@ def profile_chunk_inference(
 
     with profile(**defaults) as prof:
         with torch.inference_mode():
-            out = model.forward_chunk(feats, recycling_steps=recycling_steps)
+            out = model.forward_trunk(feats, recycling_steps=recycling_steps)
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         prof.step()

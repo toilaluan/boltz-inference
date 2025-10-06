@@ -32,6 +32,10 @@ try:
 except ImportError:  # PyTorch<2.3 or CPU-only builds without flex attention
     torch_flex_attention = None
 
+@torch.compiler.disable
+def kernel_triangular_attn(q, k, v, tri_bias, mask, scale):
+    from cuequivariance_torch.primitives.triangle import triangle_attention
+    return triangle_attention(q, k, v, tri_bias, mask=mask, scale=scale)
 
 class Linear(nn.Linear):
     """
@@ -363,9 +367,7 @@ class Attention(nn.Module):
         q_x: torch.Tensor,
         kv_x: torch.Tensor,
         tri_bias: torch.Tensor,
-        mask_bias: torch.Tensor,
         mask: torch.Tensor,
-        use_kernels: bool = False,
     ) -> torch.Tensor:
         """Compute attention.
 
@@ -381,8 +383,6 @@ class Attention(nn.Module):
             [*, H, Q, K] mask bias
         mask : torch.Tensor
             [*, Q, K] mask
-        use_kernels : bool, default=False
-            Whether to use optimized CUDA kernels
 
         Returns
         -------
@@ -395,10 +395,19 @@ class Attention(nn.Module):
             kv_x,
         )
 
-        q /= math.sqrt(self.c_hidden)
-        biases = [mask_bias, tri_bias]
-        o = _attention(q, k, v, biases)
+        # q /= math.sqrt(self.c_hidden)
+        # biases = [mask_bias, tri_bias]
+        # o = _attention(q, k, v, biases)
         # o = self._flex_attention(q, k, v, tri_bias, mask_bias)
+        scale = 1.0 / math.sqrt(self.c_hidden)
+        o = kernel_triangular_attn(
+            q,
+            k,
+            v,
+            tri_bias=tri_bias,
+            mask=mask.bool(),
+            scale=scale,
+        )
 
         o = o.transpose(-2, -3)
 

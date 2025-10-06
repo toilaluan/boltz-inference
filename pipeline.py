@@ -26,6 +26,7 @@ from boltz.data.types import (
     ResidueConstraints,
     StructureV2,
 )
+from boltz.data.pad import pad_to_max
 
 # -----------------------------
 # Public API
@@ -392,6 +393,10 @@ def collate(data: list[dict[str, Tensor]]) -> dict[str, Tensor]:
             "affinity_mw",
         ]:
             # Check if all have the same shape
+            shape_report = []
+            for v in values:
+                shape_report.append(v.shape)
+            print(key, shape_report)
             shape = values[0].shape
             if not all(v.shape == shape for v in values):
                 values, _ = pad_to_max(values, 0)
@@ -583,7 +588,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     batch = transfer_batch_to_device(features, device)
 
-    from chunk_inference_model import Boltz2ChunkInfer
+    from trunk_inference_model import Boltz2TrunkInfer
 
     subsample_msa = True
     num_subsampled_msa = 1024
@@ -618,14 +623,13 @@ if __name__ == "__main__":
         steering_args.fk_steering = use_potentials
         steering_args.physical_guidance_update = use_potentials
 
-        model = Boltz2ChunkInfer.load_from_checkpoint(
+        model = Boltz2TrunkInfer.load_from_checkpoint(
             args.checkpoint,
             strict=True,
             predict_args=predict_args,
             map_location=device,
             diffusion_process_args=asdict(diffusion_params),
             ema=False,
-            use_kernels=False,
             pairformer_args=asdict(pairformer_args),
             msa_args=asdict(msa_args),
             steering_args=asdict(steering_args),
@@ -639,7 +643,7 @@ if __name__ == "__main__":
     compile_modes = args.compile_modes or ["default"]
     should_print_model = False
 
-    def run_single_step(active_model: Boltz2ChunkInfer) -> None:
+    def run_single_step(active_model: Boltz2TrunkInfer) -> None:
         with torch.inference_mode():
             out = active_model(batch, recycling_steps=args.recycling_steps)
         if device.type == "cuda":
