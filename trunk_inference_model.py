@@ -149,11 +149,7 @@ class Boltz2TrunkInfer(nn.Module):
 
         pdistogram = self.distogram_module(z)
 
-        return {
-            "s": s,
-            "z": z,
-            "pdistogram": pdistogram,
-        }
+        return s, z, pdistogram
 
     # Alias to keep callers simple
     def forward(self, feats: Dict[str, Tensor], *, recycling_steps: int = 0) -> Dict[str, Tensor]:
@@ -219,7 +215,7 @@ class Boltz2TrunkInfer(nn.Module):
         missing = [k for k in required if k not in init_kwargs]
         if missing:
             raise KeyError(f"Missing required init args in checkpoint/overrides: {missing}")
-
+        print(init_kwargs)
         model = cls(**init_kwargs)
 
         def normalize_key(k: str) -> str:
@@ -249,7 +245,6 @@ def profile_chunk_inference(
     model: Boltz2TrunkInfer,
     feats: Dict[str, Tensor],
     *,
-    compile_pairformer_layers: bool = False,
     trace_path: str = "trace.json",
     recycling_steps: int = 0,
     profiler_kwargs: Optional[Dict[str, Any]] = None,
@@ -258,13 +253,6 @@ def profile_chunk_inference(
     """
     Profile chunk inference with torch.profiler and emit a Chrome trace.
     """
-    if compile_pairformer_layers:
-        for i in range(len(model.pairformer_module.layers)):
-            model.pairformer_module.layers[i] = torch.compile(  # type: ignore[assignment]
-                model.pairformer_module.layers[i],
-                dynamic=False,
-                fullgraph=False,
-            )
 
     kwargs = dict(profiler_kwargs or {})
     activities: Optional[Sequence[ProfilerActivity]] = kwargs.pop("activities", None)

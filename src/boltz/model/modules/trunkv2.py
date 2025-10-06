@@ -155,7 +155,7 @@ class InputEmbedder(nn.Module):
             )
             self.mol_type_conditioning_init.weight.data.fill_(0)
 
-    def forward(self, feats: dict[str, Tensor], affinity: bool = False) -> Tensor:
+    def forward(self, feats: dict[str, Tensor]) -> Tensor:
         """Perform the forward pass.
 
         Parameters
@@ -171,12 +171,9 @@ class InputEmbedder(nn.Module):
         """
         # Load relevant features
         res_type = feats["res_type"].float()
-        if affinity:
-            profile = feats["profile_affinity"]
-            deletion_mean = feats["deletion_mean_affinity"].unsqueeze(-1)
-        else:
-            profile = feats["profile"]
-            deletion_mean = feats["deletion_mean"].unsqueeze(-1)
+
+        profile = feats["profile"]
+        deletion_mean = feats["deletion_mean"].unsqueeze(-1)
 
         # Compute input embedding
         q, c, p, to_keys = self.atom_encoder(feats)

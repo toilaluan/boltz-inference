@@ -4,6 +4,7 @@ import torch
 from einops.layers.torch import Rearrange
 from torch import Tensor, nn
 
+
 import boltz.model.layers.initialize as init
 
 
@@ -59,6 +60,7 @@ class AttentionPairBias(nn.Module):
         self.proj_o = nn.Linear(c_s, c_s, bias=False)
         init.final_init_(self.proj_o.weight)
 
+    @torch.compile
     def forward(
         self,
         s: Tensor,
@@ -93,18 +95,15 @@ class AttentionPairBias(nn.Module):
 
         bias = self.proj_z(z)
         bias = bias.repeat_interleave(multiplicity, 0)
-
         g = self.proj_g(s).sigmoid()
 
-        with torch.autocast("cuda", enabled=False):
-            # Compute attention weights
-            attn = torch.einsum("bihd,bjhd->bhij", q.float(), k.float())
-            attn = attn / (self.head_dim**0.5) + bias.float()
-            attn = attn + (1 - mask[:, None, None].float()) * -self.inf
-            attn = attn.softmax(dim=-1)
 
-            # Compute output
-            o = torch.einsum("bhij,bjhd->bihd", attn, v.float()).to(v.dtype)
+        attn = torch.einsum("bihd,bjhd->bhij", q.float(), k.float())
+        attn = attn / (self.head_dim**0.5) + bias.float()
+        attn = attn + (1 - mask[:, None, None].float()) * -self.inf
+        attn = attn.softmax(dim=-1)
+        o = torch.einsum("bhij,bjhd->bihd", attn, v.float()).to(v.dtype)
+
         o = o.reshape(B, -1, self.c_s)
         o = self.proj_o(g * o)
 

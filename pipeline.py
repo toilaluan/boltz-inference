@@ -6,7 +6,7 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Dict, Optional, Tuple
-
+from dataclasses import asdict, dataclass
 import numpy as np
 import torch
 
@@ -443,6 +443,89 @@ def transfer_batch_to_device(
             batch[key] = batch[key].to(device)
     return batch
 
+@dataclass
+class BoltzProcessedInput:
+    """Processed input data."""
+
+    manifest: Manifest
+    targets_dir: Path
+    msa_dir: Path
+    constraints_dir: Optional[Path] = None
+    template_dir: Optional[Path] = None
+    extra_mols_dir: Optional[Path] = None
+
+
+@dataclass
+class PairformerArgs:
+    """Pairformer arguments."""
+
+    num_blocks: int = 48
+    num_heads: int = 16
+    dropout: float = 0.0
+    activation_checkpointing: bool = False
+    offload_to_cpu: bool = False
+    v2: bool = False
+
+
+@dataclass
+class PairformerArgsV2:
+    """Pairformer arguments."""
+
+    num_blocks: int = 64
+    num_heads: int = 16
+    dropout: float = 0.0
+    activation_checkpointing: bool = False
+    offload_to_cpu: bool = False
+    v2: bool = True
+
+
+@dataclass
+class MSAModuleArgs:
+    """MSA module arguments."""
+
+    msa_s: int = 64
+    msa_blocks: int = 4
+    msa_dropout: float = 0.0
+    z_dropout: float = 0.0
+    use_paired_feature: bool = True
+    pairwise_head_width: int = 32
+    pairwise_num_heads: int = 4
+    activation_checkpointing: bool = False
+    offload_to_cpu: bool = False
+    subsample_msa: bool = False
+    num_subsampled_msa: int = 1024
+
+
+@dataclass
+class Boltz2DiffusionParams:
+    """Diffusion process parameters."""
+
+    gamma_0: float = 0.8
+    gamma_min: float = 1.0
+    noise_scale: float = 1.003
+    rho: float = 7
+    step_scale: float = 1.5
+    sigma_min: float = 0.0001
+    sigma_max: float = 160.0
+    sigma_data: float = 16.0
+    P_mean: float = -1.2
+    P_std: float = 1.5
+    coordinate_augmentation: bool = False
+    alignment_reverse_diff: bool = False
+    synchronize_sigmas: bool = True
+
+
+@dataclass
+class BoltzSteeringParams:
+    """Steering parameters."""
+
+    fk_steering: bool = False
+    num_particles: int = 3
+    fk_lambda: float = 4.0
+    fk_resampling_interval: int = 3
+    physical_guidance_update: bool = False
+    contact_guidance_update: bool = True
+    num_gd_steps: int = 20
 
 if __name__ == "__main__":
     import time
@@ -495,89 +578,6 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    @dataclass
-    class BoltzProcessedInput:
-        """Processed input data."""
-
-        manifest: Manifest
-        targets_dir: Path
-        msa_dir: Path
-        constraints_dir: Optional[Path] = None
-        template_dir: Optional[Path] = None
-        extra_mols_dir: Optional[Path] = None
-
-
-    @dataclass
-    class PairformerArgs:
-        """Pairformer arguments."""
-
-        num_blocks: int = 48
-        num_heads: int = 16
-        dropout: float = 0.0
-        activation_checkpointing: bool = False
-        offload_to_cpu: bool = False
-        v2: bool = False
-
-
-    @dataclass
-    class PairformerArgsV2:
-        """Pairformer arguments."""
-
-        num_blocks: int = 64
-        num_heads: int = 16
-        dropout: float = 0.0
-        activation_checkpointing: bool = False
-        offload_to_cpu: bool = False
-        v2: bool = True
-
-
-    @dataclass
-    class MSAModuleArgs:
-        """MSA module arguments."""
-
-        msa_s: int = 64
-        msa_blocks: int = 4
-        msa_dropout: float = 0.0
-        z_dropout: float = 0.0
-        use_paired_feature: bool = True
-        pairwise_head_width: int = 32
-        pairwise_num_heads: int = 4
-        activation_checkpointing: bool = False
-        offload_to_cpu: bool = False
-        subsample_msa: bool = False
-        num_subsampled_msa: int = 1024
-
-
-    @dataclass
-    class Boltz2DiffusionParams:
-        """Diffusion process parameters."""
-
-        gamma_0: float = 0.8
-        gamma_min: float = 1.0
-        noise_scale: float = 1.003
-        rho: float = 7
-        step_scale: float = 1.5
-        sigma_min: float = 0.0001
-        sigma_max: float = 160.0
-        sigma_data: float = 16.0
-        P_mean: float = -1.2
-        P_std: float = 1.5
-        coordinate_augmentation: bool = False
-        alignment_reverse_diff: bool = False
-        synchronize_sigmas: bool = True
-
-
-    @dataclass
-    class BoltzSteeringParams:
-        """Steering parameters."""
-
-        fk_steering: bool = False
-        num_particles: int = 3
-        fk_lambda: float = 4.0
-        fk_resampling_interval: int = 3
-        physical_guidance_update: bool = False
-        contact_guidance_update: bool = True
-        num_gd_steps: int = 20
 
     start = time.time()
     features = preprocess(args.input_yaml)
@@ -672,10 +672,6 @@ if __name__ == "__main__":
                 dynamic=False,
             )
         print(f"[compile:{mode}] torch.compile finished for msa in {compile_elapsed:.2f}s")
-        # model = torch.compile(
-        #     model,
-        #     dynamic=False,
-        # )
         compile_elapsed = time.time() - compile_start
         print(f"[compile:{mode}] torch.compile finished in {compile_elapsed:.2f}s")
 

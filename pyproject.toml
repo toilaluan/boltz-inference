@@ -37,6 +37,7 @@ dependencies = [
     "cuequivariance-torch>=0.6.1",
     "cuequivariance-ops-cu12>=0.6.1",
     "cuequivariance-ops-torch-cu12>=0.6.1",
+    "ray[serve]>=2.49.2",
 ]
 
 [project.scripts]
