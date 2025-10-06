@@ -599,7 +599,7 @@ if __name__ == "__main__":
     write_full_pde = False
     use_potentials = False
 
-    def build_model() -> Boltz2ChunkInfer:
+    def build_model() -> Boltz2TrunkInfer:
         diffusion_params = Boltz2DiffusionParams()
         diffusion_params.step_scale = 1.5
         pairformer_args = PairformerArgsV2()
@@ -656,28 +656,35 @@ if __name__ == "__main__":
             print(model)
             should_print_model = False
 
-        normalized_mode = mode.lower()
-        model_to_run = model
+        model = model
         compile_elapsed = 0.0
 
-        if normalized_mode != "eager":
-            compile_start = time.time()
-            model_to_run = torch.compile(
-                model,
-                mode=normalized_mode,
+        compile_start = time.time()
+        for layer in model.pairformer_module.layers:
+            layer = torch.compile(
+                layer,
                 dynamic=False,
             )
-            compile_elapsed = time.time() - compile_start
-            print(f"[compile:{mode}] torch.compile finished in {compile_elapsed:.2f}s")
-        else:
-            print(f"[compile:{mode}] running without torch.compile")
+        print(f"[compile:{mode}] torch.compile finished for pairformer in {compile_elapsed:.2f}s")
+        for layer in model.msa_module.layers:
+            layer = torch.compile(
+                layer,
+                dynamic=False,
+            )
+        print(f"[compile:{mode}] torch.compile finished for msa in {compile_elapsed:.2f}s")
+        # model = torch.compile(
+        #     model,
+        #     dynamic=False,
+        # )
+        compile_elapsed = time.time() - compile_start
+        print(f"[compile:{mode}] torch.compile finished in {compile_elapsed:.2f}s")
 
         warmup_elapsed = 0.0
-        model_to_run.eval()
+        model.eval()
         if args.warmup_iters > 0:
             warmup_start = time.time()
             for _ in range(args.warmup_iters):
-                _ = run_single_step(model_to_run)
+                _ = run_single_step(model)
             warmup_elapsed = time.time() - warmup_start
         print(f"[warmup:{mode}] {args.warmup_iters} iteration(s) in {warmup_elapsed:.2f}s")
 
@@ -692,7 +699,7 @@ if __name__ == "__main__":
             profile_memory=True,
         ) as prof:
             for _ in range(args.profile_iters):
-                out = run_single_step(model_to_run)
+                out = run_single_step(model)
                 prof.step()
         profile_elapsed = time.time() - profile_start
         print(
@@ -706,12 +713,10 @@ if __name__ == "__main__":
         if device.type == "cuda":
             print(averages.table(sort_by="self_cpu_time_total", row_limit=args.row_limit))
 
-        trace_label = normalized_mode
-        trace_path = Path(f"trace-json-{trace_label}.json")
+        trace_path = Path(f"trace-json-{mode}.json")
         prof.export_chrome_trace(trace_path.as_posix())
         print(f"[profile:{mode}] Chrome trace exported to {trace_path.resolve()}")
 
-        del model_to_run
         del model
         if device.type == "cuda":
             torch.cuda.empty_cache()

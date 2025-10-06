@@ -54,11 +54,6 @@ class Boltz2TrunkInfer(nn.Module):
         max_dist: float = 22.0,
     ) -> None:
         super().__init__()
-
-        # Make compile caches explicit for big graphs
-        torch._dynamo.config.cache_size_limit = 512  # type: ignore[attr-defined]
-        torch._dynamo.config.accumulated_cache_size_limit = 512  # type: ignore[attr-defined]
-
         self.num_bins = num_bins
         self.min_dist = min_dist
         self.max_dist = max_dist
