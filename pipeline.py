@@ -543,7 +543,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--checkpoint",
-        default="~/.boltz/boltz2_conf.ckpt",
+        default="~/.boltz/boltz2_aff.ckpt",
         help="Checkpoint path for Boltz2ChunkInfer.",
     )
     parser.add_argument(
@@ -588,7 +588,8 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     batch = transfer_batch_to_device(features, device)
 
-    from trunk_inference_model import Boltz2TrunkInfer
+    # from trunk_inference_model import Boltz2TrunkInfer
+    from boltz_inference import Boltz2AffinityInference
 
     subsample_msa = True
     num_subsampled_msa = 1024
@@ -599,7 +600,7 @@ if __name__ == "__main__":
     write_full_pde = False
     use_potentials = False
 
-    def build_model() -> Boltz2TrunkInfer:
+    def build_model() -> Boltz2AffinityInference:
         diffusion_params = Boltz2DiffusionParams()
         diffusion_params.step_scale = 1.5
         pairformer_args = PairformerArgsV2()
@@ -623,7 +624,7 @@ if __name__ == "__main__":
         steering_args.fk_steering = use_potentials
         steering_args.physical_guidance_update = use_potentials
 
-        model = Boltz2TrunkInfer.load_from_checkpoint(
+        model = Boltz2AffinityInference.load_from_checkpoint(
             args.checkpoint,
             strict=True,
             predict_args=predict_args,
@@ -643,7 +644,7 @@ if __name__ == "__main__":
     compile_modes = args.compile_modes or ["default"]
     should_print_model = False
 
-    def run_single_step(active_model: Boltz2TrunkInfer) -> None:
+    def run_single_step(active_model: Boltz2AffinityInference) -> None:
         with torch.inference_mode():
             out = active_model(batch, recycling_steps=args.recycling_steps)
         if device.type == "cuda":
@@ -716,5 +717,4 @@ if __name__ == "__main__":
         del model
         if device.type == "cuda":
             torch.cuda.empty_cache()
-        print(out["pdistogram"][0,0,0,0,0])
-        print(out["pdistogram"].shape)
+        print(out)
