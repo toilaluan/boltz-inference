@@ -81,7 +81,6 @@ class AffinityModule(nn.Module):
         x_pred,
         feats,
         multiplicity=1,
-        use_kernels=False,
     ):
         z = self.z_linear(self.z_norm(z))
         z = z.repeat_interleave(multiplicity, 0)
@@ -126,7 +125,6 @@ class AffinityModule(nn.Module):
         z = self.pairformer_stack(
             z,
             pair_mask=cross_pair_mask,
-            use_kernels=use_kernels,
         )
 
         out_dict = {}

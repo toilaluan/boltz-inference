@@ -61,8 +61,8 @@ class Boltz2AffinityInference(nn.Module):
         affinity_model_args1: Dict[str, Any],
         affinity_model_args2: Dict[str, Any],
         template_args: Dict[str, Any],
+        steering_args: Dict[str, Any],
         # Flags / options
-        bond_type_feature: bool = False,
         fix_sym_check: bool = False,
         cyclic_pos_enc: bool = False,
         atoms_per_window_queries: int = 32,
@@ -76,7 +76,7 @@ class Boltz2AffinityInference(nn.Module):
         use_kernels: bool = False,
     ) -> None:
         super().__init__()
-
+        self.steering_args = steering_args
         # --- Embedders & small feature heads ---
         full_embedder_args = {
             "atom_s": atom_s,
@@ -102,9 +102,7 @@ class Boltz2AffinityInference(nn.Module):
         )
 
         self.token_bonds = nn.Linear(1, token_z, bias=False)
-        self.bond_type_feature = bond_type_feature
-        if bond_type_feature:
-            self.token_bonds_type = nn.Embedding(len(const.bond_types) + 1, token_z)
+        self.token_bonds_type = nn.Embedding(len(const.bond_types) + 1, token_z)
 
         self.contact_conditioning = ContactConditioning(
             token_z=token_z,
@@ -162,7 +160,7 @@ class Boltz2AffinityInference(nn.Module):
             token_s,
             token_z,
             token_level_confidence=True,
-            bond_type_feature=bond_type_feature,
+            bond_type_feature=True,
             fix_sym_check=fix_sym_check,
             cyclic_pos_enc=cyclic_pos_enc,
             conditioning_cutoff_min=conditioning_cutoff_min,
@@ -205,14 +203,14 @@ class Boltz2AffinityInference(nn.Module):
         """
         # --- Input embeddings ---
         s_inputs = self.input_embedder(feats)  # (B, L, token_s)
+        torch.save(s_inputs, "s_inputs1.pt")
 
         # Initialize sequence & pair embeddings
         s_init = self.s_init(s_inputs)
         z_init = self.z_init_1(s_inputs)[:, :, None] + self.z_init_2(s_inputs)[:, None, :]
         z_init = z_init + self.rel_pos(feats)
         z_init = z_init + self.token_bonds(feats["token_bonds"].float())
-        if self.bond_type_feature:
-            z_init = z_init + self.token_bonds_type(feats["type_bonds"].long())
+        z_init = z_init + self.token_bonds_type(feats["type_bonds"].long())
         z_init = z_init + self.contact_conditioning(feats)
 
         # Compute masks
@@ -223,15 +221,16 @@ class Boltz2AffinityInference(nn.Module):
         s = torch.zeros_like(s_init)
         z = torch.zeros_like(z_init)
 
-        # Apply recycling (single terminal pass)
-        s = s_init + self.s_recycle(self.s_norm(s))
-        z = z_init + self.z_recycle(self.z_norm(z))
+        for i in range(recycling_steps+1):
+            print(f"Recycling step {i}/{recycling_steps}")
+            s = s_init + self.s_recycle(self.s_norm(s))
+            z = z_init + self.z_recycle(self.z_norm(z))
 
-        # Trunk
-        z = z + self.msa_module(z, s_inputs, feats)
-        s, z = self.pairformer_module(
-            s, z, mask=mask, pair_mask=pair_mask
-        )
+            # Trunk
+            z = z + self.msa_module(z, s_inputs, feats)
+            s, z = self.pairformer_module(
+                s, z, mask=mask, pair_mask=pair_mask
+            )
 
         # Distogram logits (Confidence module consumes one distogram head)
         pdistogram = self.distogram_module(z)
@@ -261,7 +260,7 @@ class Boltz2AffinityInference(nn.Module):
                 atom_mask=feats["atom_pad_mask"].float(),
                 multiplicity=diffusion_samples,
                 max_parallel_samples=max_parallel_samples,
-                steering_args=None,
+                steering_args=self.steering_args,
                 diffusion_conditioning=diffusion_conditioning,
             )
         sample_atom_coords = struct_out["sample_atom_coords"]  # (S, K=1, L, 3) typically
@@ -275,14 +274,11 @@ class Boltz2AffinityInference(nn.Module):
             feats=feats,
             pred_distogram_logits=pdistogram[:, :, :, 0].detach(),  # consume one head
             multiplicity=diffusion_samples,
-            run_sequentially=run_confidence_sequentially,
-            use_kernels=self.use_kernels,
+            run_sequentially=True,
+            use_kernels=True,
         )
 
-        if use_iptm_selection and "iptm" in conf_out:
-            best_idx = torch.argsort(conf_out["iptm"], descending=True)[0].item()
-        else:
-            best_idx = 0
+        best_idx = torch.argsort(conf_out["iptm"], descending=True)[0].item()
 
         coords_affinity = sample_atom_coords.detach()[best_idx][None, None]  # (1,1,L,3)
 
@@ -298,27 +294,27 @@ class Boltz2AffinityInference(nn.Module):
         z_affinity = z * cross_pair_mask[None, :, :, None]
 
         # Affinity-specific input embedding (if your embedder uses a special path)
-        s_inputs_aff = self.input_embedder(feats, affinity=True)
+        s_inputs_aff = self.input_embedder(feats)
 
         with torch.autocast("cuda", enabled=False):
-            aff_out = self.affinity_module(
+            aff_out1 = self.affinity_module1(
                 s_inputs=s_inputs_aff.detach(),
                 z=z_affinity.detach(),
                 x_pred=coords_affinity,
                 feats=feats,
                 multiplicity=1,
-                use_kernels=self.use_kernels,
             )
+            aff_out2 = self.affinity_module2(
+                s_inputs=s_inputs_aff.detach(),
+                z=z_affinity.detach(),
+                x_pred=coords_affinity,
+                feats=feats,
+                multiplicity=1,
+            )
+            prob = torch.nn.functional.sigmoid(aff_out1["affinity_logits_binary"]) + torch.nn.functional.sigmoid(aff_out2["affinity_logits_binary"])
+            prob = prob / 2.0
 
-        prob = torch.sigmoid(aff_out["affinity_logits_binary"])  # (B, 1) or (B,)
-        return {
-            "affinity_probability_binary": prob,
-            "affinity_logits_binary": aff_out["affinity_logits_binary"],
-            # Expose a few helpful internals for debugging/ablation
-            "iptm": conf_out.get("iptm"),
-            "sample_atom_coords": sample_atom_coords,
-        }
-
+        return prob
     # ------------------------------------------------------------------
     # Convenience: load a pretrained checkpoint (strict=False)
     # ------------------------------------------------------------------
@@ -363,6 +359,6 @@ def predict_affinity_probability(
         use_iptm_selection=True,
         max_parallel_samples=None,
     )
-    return out["affinity_probability_binary"]
+    return out
 
 

@@ -24,6 +24,15 @@
         "activation_checkpointing": true,
         "use_trifast": true
     },
+    "steering_args": {
+        "fk_steering": false,
+        "num_particles": 3,
+        "fk_lambda": 4.0,
+        "fk_resampling_interval": 3,
+        "physical_guidance_update": false,
+        "contact_guidance_update": false,
+        "num_gd_steps": 20
+    },
     "pairformer_args": {
         "num_blocks": 64,
         "num_heads": 16,
@@ -94,7 +103,6 @@
     "atoms_per_window_keys": 128,
     "fix_sym_check": true,
     "cyclic_pos_enc": true,
-    "bond_type_feature": true,
     "use_no_atom_char": false,
     "use_atom_backbone_feat": false,
     "use_residue_feats_atoms": false,
