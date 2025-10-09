@@ -412,6 +412,9 @@ class Boltz2(LightningModule):
             self.training and self.structure_prediction_training
         ):
             s_inputs = self.input_embedder(feats)
+            print(s_inputs.shape)
+            # torch.save(s_inputs, "s_inputs0.pt")
+            # raise
 
             # Initialize the sequence embeddings
             s_init = self.s_init(s_inputs)
@@ -462,7 +465,7 @@ class Boltz2(LightningModule):
                                 template_module = self.template_module
 
                             z = z + template_module(
-                                z, feats, pair_mask, use_kernels=self.use_kernels
+                                z, feats, pair_mask,
                             )
 
                         if self.is_msa_compiled and not self.training:
@@ -471,7 +474,7 @@ class Boltz2(LightningModule):
                             msa_module = self.msa_module
 
                         z = z + msa_module(
-                            z, s_inputs, feats, use_kernels=self.use_kernels
+                            z, s_inputs, feats,
                         )
 
                         # Revert to uncompiled version for validation
@@ -485,7 +488,6 @@ class Boltz2(LightningModule):
                             z,
                             mask=mask,
                             pair_mask=pair_mask,
-                            use_kernels=self.use_kernels,
                         )
 
             pdistogram = self.distogram_module(z)
@@ -541,6 +543,7 @@ class Boltz2(LightningModule):
                         steering_args=self.steering_args,
                         diffusion_conditioning=diffusion_conditioning,
                     )
+                    print("struct_out.keys()", struct_out.keys())
                     dict_out.update(struct_out)
 
                 if self.predict_bfactor:
@@ -601,7 +604,6 @@ class Boltz2(LightningModule):
                     ),
                     multiplicity=diffusion_samples,
                     run_sequentially=run_confidence_sequentially,
-                    use_kernels=self.use_kernels,
                 )
             )
 
@@ -623,7 +625,7 @@ class Boltz2(LightningModule):
             coords_affinity = dict_out["sample_atom_coords"].detach()[best_idx][
                 None, None
             ]
-            s_inputs = self.input_embedder(feats, affinity=True)
+            s_inputs = self.input_embedder(feats)
 
             with torch.autocast("cuda", enabled=False):
                 if self.affinity_ensemble:
@@ -633,7 +635,6 @@ class Boltz2(LightningModule):
                         x_pred=coords_affinity,
                         feats=feats,
                         multiplicity=1,
-                        use_kernels=self.use_kernels,
                     )
 
                     dict_out_affinity1["affinity_probability_binary"] = (
@@ -647,7 +648,6 @@ class Boltz2(LightningModule):
                         x_pred=coords_affinity,
                         feats=feats,
                         multiplicity=1,
-                        use_kernels=self.use_kernels,
                     )
                     dict_out_affinity2["affinity_probability_binary"] = (
                         torch.nn.functional.sigmoid(
@@ -1064,6 +1064,11 @@ class Boltz2(LightningModule):
                 max_parallel_samples=self.predict_args["max_parallel_samples"],
                 run_confidence_sequentially=True,
             )
+            try:
+                print(out["affinity_probability_binary"])
+            except Exception as e:
+                print(out.keys())
+
             pred_dict = {"exception": False}
             if "keys_dict_batch" in self.predict_args:
                 for key in self.predict_args["keys_dict_batch"]:
@@ -1105,6 +1110,7 @@ class Boltz2(LightningModule):
                     pred_dict["protein_iptm"] = out["protein_iptm"]
                     pred_dict["pair_chains_iptm"] = out["pair_chains_iptm"]
             if self.affinity_prediction:
+                print("Affinity prediction")
                 pred_dict["affinity_pred_value"] = out["affinity_pred_value"]
                 pred_dict["affinity_probability_binary"] = out[
                     "affinity_probability_binary"

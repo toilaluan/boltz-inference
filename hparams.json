@@ -1,0 +1,159 @@
+{
+    "atom_s": 128,
+    "atom_z": 16,
+    "token_s": 384,
+    "token_z": 128,
+    "num_bins": 64,
+    "embedder_args": {
+        "atom_encoder_depth": 3,
+        "atom_encoder_heads": 4,
+        "add_mol_type_feat": true,
+        "add_method_conditioning": true,
+        "add_modified_flag": true,
+        "add_cyclic_flag": true
+    },
+    "msa_args": {
+        "msa_s": 64,
+        "msa_blocks": 4,
+        "msa_dropout": 0.15,
+        "z_dropout": 0.25,
+        "miniformer_blocks": false,
+        "pairwise_head_width": 32,
+        "pairwise_num_heads": 4,
+        "use_paired_feature": true,
+        "activation_checkpointing": true,
+        "use_trifast": true
+    },
+    "steering_args": {
+        "fk_steering": false,
+        "num_particles": 3,
+        "fk_lambda": 4.0,
+        "fk_resampling_interval": 3,
+        "physical_guidance_update": false,
+        "contact_guidance_update": false,
+        "num_gd_steps": 20
+    },
+    "pairformer_args": {
+        "num_blocks": 64,
+        "num_heads": 16,
+        "dropout": 0.25,
+        "post_layer_norm": false,
+        "activation_checkpointing": true,
+        "use_trifast": true
+    },
+    "score_model_args": {
+        "sigma_data": 16,
+        "dim_fourier": 256,
+        "atom_encoder_depth": 3,
+        "atom_encoder_heads": 4,
+        "token_transformer_depth": 24,
+        "token_transformer_heads": 16,
+        "atom_decoder_depth": 3,
+        "atom_decoder_heads": 4,
+        "conditioning_transition_layers": 2,
+        "transformer_post_ln": false,
+        "activation_checkpointing": true
+    },
+    "diffusion_process_args": {
+        "sigma_min": 0.0004,
+        "sigma_max": 160.0,
+        "sigma_data": 16.0,
+        "rho": 7,
+        "P_mean": -1.2,
+        "P_std": 1.5,
+        "gamma_0": 0.8,
+        "gamma_min": 1.0,
+        "noise_scale": 1.0,
+        "step_scale": 1.0,
+        "coordinate_augmentation": true,
+        "alignment_reverse_diff": true,
+        "synchronize_sigmas": true
+    },
+    "confidence_model_args": {
+        "use_gaussian": false,
+        "num_dist_bins": 64,
+        "max_dist": 22,
+        "use_miniformer": false,
+        "no_trunk_feats": false,
+        "add_s_to_z_prod": true,
+        "add_s_input_to_s": true,
+        "use_s_diffusion": false,
+        "add_z_input_to_z": true,
+        "pairformer_args": {
+            "num_blocks": 8,
+            "num_heads": 16,
+            "dropout": 0.25
+        },
+        "confidence_args": {
+            "num_plddt_bins": 50,
+            "num_pde_bins": 64,
+            "num_pae_bins": 64,
+            "relative_confidence": "none",
+            "use_separate_heads": true
+        }
+    },
+    "atom_feature_dim": 388,
+    "template_args": {
+        "template_dim": 64,
+        "template_blocks": 2,
+        "activation_checkpointing": false,
+        "use_trifast": true
+    },
+    "atoms_per_window_queries": 32,
+    "atoms_per_window_keys": 128,
+    "fix_sym_check": true,
+    "cyclic_pos_enc": true,
+    "use_no_atom_char": false,
+    "use_atom_backbone_feat": false,
+    "use_residue_feats_atoms": false,
+    "conditioning_cutoff_min": 4.0,
+    "conditioning_cutoff_max": 20.0,
+    "affinity_model_args1": {
+        "use_cross_transformer": false,
+        "num_dist_bins": 64,
+        "max_dist": 22,
+        "groups": {
+            "0": 1,
+            "1": 4,
+            "2": 6,
+            "3": 4,
+            "4": 1
+        },
+        "pairformer_args": {
+            "num_blocks": 8,
+            "dropout": 0.25,
+            "activation_checkpointing": true,
+            "use_trifast": true
+        },
+        "transformer_args": {
+            "num_blocks": 12,
+            "num_heads": 8,
+            "token_s": 384,
+            "activation_checkpointing": true
+        }
+    },
+    "affinity_model_args2": {
+        "use_cross_transformer": false,
+        "num_dist_bins": 64,
+        "max_dist": 22,
+        "groups": {
+            "0": 1,
+            "1": 4,
+            "2": 6,
+            "3": 4,
+            "4": 1
+        },
+        "pairformer_args": {
+            "num_blocks": 4,
+            "dropout": 0.25,
+            "activation_checkpointing": true,
+            "use_trifast": true
+        },
+        "transformer_args": {
+            "num_blocks": 12,
+            "num_heads": 8,
+            "token_s": 384,
+            "activation_checkpointing": true
+        }
+    }
+}

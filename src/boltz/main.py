@@ -1017,6 +1017,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
             "write_confidence_summary": True,
             "write_full_pae": write_full_pae,
             "write_full_pde": write_full_pde,
+            "affinity_prediction": True,
         }
 
         steering_args = BoltzSteeringParams()
@@ -1128,6 +1129,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
             "write_confidence_summary": False,
             "write_full_pae": False,
             "write_full_pde": False,
+            "affinity_prediction": True,
         }
 
         # Load affinity model once
@@ -1151,6 +1153,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
             msa_args=asdict(msa_args),
             steering_args=asdict(steering_args),
             affinity_mw_correction=affinity_mw_correction,
+            affinity_prediction=True,
         )
         model_module.eval()
 
